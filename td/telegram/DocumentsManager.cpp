@@ -339,7 +339,8 @@ Document DocumentsManager::on_get_document(RemoteDocument remote_document, Dialo
   FileLocationSource source = FileLocationSource::FromServer;
 
   auto fix_tgs_sticker_type = [&] {
-    if (mime_type != "application/x-tgsticker") {
+    // Ansible: the platform sends its own MIME for the same Lottie payload.
+    if (mime_type != "application/x-tgsticker" && mime_type != "application/x-ansible-sticker") {
       return;
     }
 
