@@ -1229,18 +1229,23 @@ DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
     add_ip_ports(1, {bh_mvsy_host}, {10443}, HostType::Url);
   }
 #else
+  // Форма вызовов как в форке: тип хоста по умолчанию, без HostType::Url.
+  // 🚨 Тип по умолчанию IPv4, а init_ipv4_port завершается .ensure() - на
+  // DNS-имени процесс не деградирует, а ПАДАЕТ при старте. Значит в
+  // BH_MVSY_HOST допустим только литеральный IP; для bot-api в кластере это
+  // ClusterIP службы as-backend, и сборка Ansible_BotApi подставляет его сама.
   if (is_test) {
-    add_ip_ports(1, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(2, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(3, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, ports);
+    add_ip_ports(2, {bh_mvsy_host}, ports);
+    add_ip_ports(3, {bh_mvsy_host}, ports);
     // Ansible: без запасного IPv6
   } else {
     // Ansible: все DC указывают на наш бэкенд
-    add_ip_ports(1, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(2, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(3, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(4, {bh_mvsy_host}, ports, HostType::Url);
-    add_ip_ports(5, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, ports);
+    add_ip_ports(2, {bh_mvsy_host}, ports);
+    add_ip_ports(3, {bh_mvsy_host}, ports);
+    add_ip_ports(4, {bh_mvsy_host}, ports);
+    add_ip_ports(5, {bh_mvsy_host}, ports);
   }
 #endif
   return res;
