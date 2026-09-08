@@ -6,6 +6,8 @@
 //
 #include "td/telegram/net/ConnectionCreator.h"
 
+#include <cstdlib>
+
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -1202,25 +1204,43 @@ DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
       }
     }
   };
-  // BeHappy: only use configured MTProto port (10443)
+  // Ansible: только настроенный порт MTProto (10443). Запасные порты Telegram
+  // (443, 80, 5222) убраны намеренно: MVSy и HTTP-сервер живут на одном хосте.
+  //
+  // 🚨 Адрес берётся из BH_MVSY_HOST, и это НЕ украшение. Здесь был зашит
+  // 144.31.238.115 — адрес СТАРОГО кластера, который давно не отвечает;
+  // bot-api в кластере ходит на службу по DNS-имени и без этой переменной не
+  // подключился бы вовсе. Поддержка переменной уже была написана в другой
+  // линии репозитория (origin/master) и потерялась при переносе темы про
+  // стикерный MIME на линию апстрима — ветки не имеют общего предка, поэтому
+  // потерю нечем было заметить.
+  //
+  // HostType::Url оставлен намеренно: init_host_port принимает и IP, и
+  // DNS-имя, а в кластере передают именно имя службы.
+  const char *bh_mvsy_host_env = std::getenv("BH_MVSY_HOST");
+  std::string bh_mvsy_host = (bh_mvsy_host_env && *bh_mvsy_host_env)
+      ? std::string(bh_mvsy_host_env)
+      : std::string("85.193.80.91");
   vector<int> ports = {10443};
 #if TD_EMSCRIPTEN
   if (is_test) {
-    add_ip_ports(1, {"144.31.238.115"}, {10443}, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, {10443}, HostType::Url);
   } else {
-    add_ip_ports(1, {"144.31.238.115"}, {10443}, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, {10443}, HostType::Url);
   }
 #else
   if (is_test) {
-    add_ip_ports(1, {"144.31.238.115"}, ports);
-    add_ip_ports(2, {"144.31.238.115"}, ports);
-    add_ip_ports(3, {"144.31.238.115"}, ports);
+    add_ip_ports(1, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(2, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(3, {bh_mvsy_host}, ports, HostType::Url);
+    // Ansible: без запасного IPv6
   } else {
-    add_ip_ports(1, {"144.31.238.115"}, ports);
-    add_ip_ports(2, {"144.31.238.115"}, ports);
-    add_ip_ports(3, {"144.31.238.115"}, ports);
-    add_ip_ports(4, {"144.31.238.115"}, ports);
-    add_ip_ports(5, {"144.31.238.115"}, ports);
+    // Ansible: все DC указывают на наш бэкенд
+    add_ip_ports(1, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(2, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(3, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(4, {bh_mvsy_host}, ports, HostType::Url);
+    add_ip_ports(5, {bh_mvsy_host}, ports, HostType::Url);
   }
 #endif
   return res;
