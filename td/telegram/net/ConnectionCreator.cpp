@@ -6,6 +6,8 @@
 //
 #include "td/telegram/net/ConnectionCreator.h"
 
+#include <cstdlib>
+
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
@@ -1241,40 +1243,36 @@ DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
       }
     }
   };
-  vector<int> ports = {443, 80, 5222};
+  // Ansible: только настроенный порт MTProto (10443). Запасные порты Telegram
+  // (443, 80, 5222) убраны намеренно: MVSy и HTTP-сервер живут на одном хосте.
+  // Форма вызовов оставлена как в форке: тип хоста по умолчанию, без HostType::Url.
+  //
+  // Адрес берётся из BH_MVSY_HOST, фолбэк — публичный адрес платформы.
+  // ВНИМАНИЕ: тип по умолчанию IPv4, а init_ipv4_port завершается .ensure() —
+  // на DNS-имени процесс не деградирует, а ПАДАЕТ. В BH_MVSY_HOST кладём
+  // только литеральный IP (для bot-api в кластере — ClusterIP службы).
+  const char *bh_mvsy_host_env = std::getenv("BH_MVSY_HOST");
+  std::string bh_mvsy_host = (bh_mvsy_host_env && *bh_mvsy_host_env)
+      ? std::string(bh_mvsy_host_env)
+      : std::string("85.193.80.91");
+  vector<int> ports = {10443};
 #if TD_EMSCRIPTEN
   if (is_test) {
-    add_ip_ports(1, {"pluto.web.telegram.org/apiws_test"}, {443}, HostType::Url);
-    add_ip_ports(2, {"venus.web.telegram.org/apiws_test"}, {443}, HostType::Url);
-    add_ip_ports(3, {"aurora.web.telegram.org/apiws_test"}, {443}, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, {10443}, HostType::Url);
   } else {
-    add_ip_ports(1, {"pluto.web.telegram.org/apiws"}, {443}, HostType::Url);
-    add_ip_ports(2, {"venus.web.telegram.org/apiws"}, {443}, HostType::Url);
-    add_ip_ports(3, {"aurora.web.telegram.org/apiws"}, {443}, HostType::Url);
-    add_ip_ports(4, {"vesta.web.telegram.org/apiws"}, {443}, HostType::Url);
-    add_ip_ports(5, {"flora.web.telegram.org/apiws"}, {443}, HostType::Url);
+    add_ip_ports(1, {bh_mvsy_host}, {10443}, HostType::Url);
   }
 #else
   if (is_test) {
-    add_ip_ports(1, {"149.154.175.10"}, ports);
-    add_ip_ports(2, {"149.154.167.40"}, ports);
-    add_ip_ports(3, {"149.154.175.117"}, ports);
-
-    add_ip_ports(1, {"2001:b28:f23d:f001::e"}, ports, HostType::IPv6);
-    add_ip_ports(2, {"2001:67c:4e8:f002::e"}, ports, HostType::IPv6);
-    add_ip_ports(3, {"2001:b28:f23d:f003::e"}, ports, HostType::IPv6);
+    add_ip_ports(1, {bh_mvsy_host}, ports);
+    add_ip_ports(2, {bh_mvsy_host}, ports);
+    add_ip_ports(3, {bh_mvsy_host}, ports);
   } else {
-    add_ip_ports(1, {"149.154.175.50"}, ports);
-    add_ip_ports(2, {"149.154.167.51", "95.161.76.100"}, ports);
-    add_ip_ports(3, {"149.154.175.100"}, ports);
-    add_ip_ports(4, {"149.154.167.91"}, ports);
-    add_ip_ports(5, {"149.154.171.5"}, ports);
-
-    add_ip_ports(1, {"2001:b28:f23d:f001::a"}, ports, HostType::IPv6);
-    add_ip_ports(2, {"2001:67c:4e8:f002::a"}, ports, HostType::IPv6);
-    add_ip_ports(3, {"2001:b28:f23d:f003::a"}, ports, HostType::IPv6);
-    add_ip_ports(4, {"2001:67c:4e8:f004::a"}, ports, HostType::IPv6);
-    add_ip_ports(5, {"2001:b28:f23f:f005::a"}, ports, HostType::IPv6);
+    add_ip_ports(1, {bh_mvsy_host}, ports);
+    add_ip_ports(2, {bh_mvsy_host}, ports);
+    add_ip_ports(3, {bh_mvsy_host}, ports);
+    add_ip_ports(4, {bh_mvsy_host}, ports);
+    add_ip_ports(5, {bh_mvsy_host}, ports);
   }
 #endif
   return res;
