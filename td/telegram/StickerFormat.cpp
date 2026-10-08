@@ -31,6 +31,13 @@ StickerFormat get_sticker_format_by_mime_type(Slice mime_type) {
   if (mime_type == "application/x-tgsticker") {
     return StickerFormat::Tgs;
   }
+  // Ansible: the platform's own MIME for the same Lottie payload. Our clients
+  // pick the Lottie renderer by this constant, so the server keeps sending it;
+  // without accepting it here every gift and animated emoji is dropped as
+  // "unknown format" and sticker sets arrive empty.
+  if (mime_type == "application/x-ansible-sticker") {
+    return StickerFormat::Tgs;
+  }
   if (mime_type == "image/webp") {
     return StickerFormat::Webp;
   }
@@ -42,6 +49,10 @@ StickerFormat get_sticker_format_by_mime_type(Slice mime_type) {
 
 StickerFormat get_sticker_format_by_extension(Slice extension) {
   if (extension == "tgs") {
+    return StickerFormat::Tgs;
+  }
+  // Ansible: same payload, platform extension.
+  if (extension == "ass") {
     return StickerFormat::Tgs;
   }
   if (extension == "webp") {

@@ -14,8 +14,10 @@
 #include "td/telegram/td_api.h"
 #include "td/telegram/telegram_api.h"
 #include "td/telegram/UserId.h"
+#include "td/telegram/WebPageId.h"
 
 #include "td/utils/common.h"
+#include "td/utils/Status.h"
 
 #include <utility>
 
@@ -43,6 +45,16 @@ struct PollOption {
   PollOption(Td *td, telegram_api::object_ptr<telegram_api::PollAnswer> &&poll_answer_ptr,
              vector<std::pair<ChannelId, MinChannel>> &min_channels);
 
+  static Result<PollOption> get_poll_option(Td *td, DialogId dialog_id,
+                                            td_api::object_ptr<td_api::inputPollOption> &&input_poll_option);
+
+  static Result<vector<PollOption>> get_poll_options(
+      Td *td, DialogId dialog_id, vector<td_api::object_ptr<td_api::inputPollOption>> &&input_poll_options);
+
+  const FormattedText &get_text() const {
+    return text_;
+  }
+
   const string &get_data() const {
     return data_;
   }
@@ -55,13 +67,52 @@ struct PollOption {
     return added_date_;
   }
 
+  bool is_chosen() const {
+    return is_chosen_;
+  }
+
+  bool set_is_chosen(bool is_chosen) {
+    if (is_chosen_ != is_chosen) {
+      is_chosen_ = is_chosen;
+      return true;
+    }
+    return false;
+  }
+
+  int32 get_voter_count() const {
+    return voter_count_;
+  }
+
+  bool set_voter_count(int32 voter_count) {
+    if (voter_count_ != voter_count) {
+      voter_count_ = voter_count;
+      return true;
+    }
+    return false;
+  }
+
+  bool set_recent_voter_dialog_ids(vector<DialogId> &&recent_voter_dialog_ids) {
+    if (recent_voter_dialog_ids_ != recent_voter_dialog_ids) {
+      recent_voter_dialog_ids_ = std::move(recent_voter_dialog_ids);
+      return true;
+    }
+    return false;
+  }
+
+  WebPageId get_web_page_id() const;
+
+  void remove_web_page();
+
+  string get_search_text() const;
+
   PollOption dup_option(Td *td, DialogId dialog_id) const;
 
   void append_file_ids(const Td *td, vector<FileId> &file_ids) const;
 
   td_api::object_ptr<td_api::pollOption> get_poll_option_object(Td *td) const;
 
-  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer() const;
+  telegram_api::object_ptr<telegram_api::PollAnswer> get_input_poll_answer(
+      telegram_api::object_ptr<telegram_api::InputMedia> &&input_media) const;
 
   static vector<PollOption> get_poll_options(Td *td,
                                              vector<telegram_api::object_ptr<telegram_api::PollAnswer>> &&poll_answers,
