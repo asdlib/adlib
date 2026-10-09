@@ -4022,10 +4022,27 @@ void LinkManager::get_recent_me_urls(const string &referrer, Promise<td_api::obj
   td_->create_handler<GetRecentMeUrlsQuery>(std::move(promise))->send(referrer);
 }
 
+// Наша схема ссылок — `as:`. `tg:` принимается рядом, и это не недоделка: его
+// шлют все существующие библиотеки ботов и все ссылки, выданные до переезда.
+// Выбросив его, мы сломали бы каждую такую ссылку ради одного только имени.
+//
+// 🚨 Возвращает длину снятой схемы или 0, если ни одна не подошла. Три места
+// разбора ссылок раньше несли эту проверку каждое своей строкой — расходились
+// бы при первой же правке.
+static size_t match_link_scheme(Slice url) {
+  if (begins_with(url, Slice("as:"))) {
+    return 3;
+  }
+  if (begins_with(url, Slice("tg:"))) {
+    return 3;
+  }
+  return 0;
+}
+
 void LinkManager::get_deep_link_info(Slice link, Promise<td_api::object_ptr<td_api::deepLinkInfo>> &&promise) {
-  Slice link_scheme("tg:");
-  if (begins_with(link, link_scheme)) {
-    link.remove_prefix(link_scheme.size());
+  auto scheme_size = match_link_scheme(link);
+  if (scheme_size != 0) {
+    link.remove_prefix(scheme_size);
     if (begins_with(link, "//")) {
       link.remove_prefix(2);
     }
@@ -4386,11 +4403,11 @@ UserId LinkManager::get_link_user_id(Slice url) {
   string lower_cased_url = to_lower(url);
   url = lower_cased_url;
 
-  Slice link_scheme("tg:");
-  if (!begins_with(url, link_scheme)) {
+  auto scheme_size = match_link_scheme(url);
+  if (scheme_size == 0) {
     return UserId();
   }
-  url.remove_prefix(link_scheme.size());
+  url.remove_prefix(scheme_size);
   if (begins_with(url, "//")) {
     url.remove_prefix(2);
   }
@@ -4437,12 +4454,12 @@ Result<Slice> LinkManager::check_tg_url_host(Slice url, Slice host) {
   string lower_cased_url_str = to_lower(url.size() > min_size ? url.substr(0, min_size) : url);
   Slice lower_cased_url = lower_cased_url_str;
 
-  Slice link_scheme("tg:");
-  if (!begins_with(lower_cased_url, link_scheme)) {
-    return Status::Error(400, "URL must have scheme tg");
+  auto scheme_size = match_link_scheme(lower_cased_url);
+  if (scheme_size == 0) {
+    return Status::Error(400, "URL must have scheme as or tg");
   }
-  lower_cased_url.remove_prefix(link_scheme.size());
-  url.remove_prefix(link_scheme.size());
+  lower_cased_url.remove_prefix(scheme_size);
+  url.remove_prefix(scheme_size);
   if (begins_with(url, "//")) {
     lower_cased_url.remove_prefix(2);
     url.remove_prefix(2);
