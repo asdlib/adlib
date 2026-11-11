@@ -1316,6 +1316,25 @@ TEST(MessageEntities, parse_html) {
   check_parse_html("🏟 🏟&lt;<i>a</i   ", "Unclosed end tag at byte offset 17");
   check_parse_html("🏟 🏟&lt;<i>a</em   >", "Unmatched end tag at byte offset 17, expected \"</i>\", found \"</em>\"");
 
+  // Ansible HTML names share entities and UTF-16 offsets with the legacy namespace.
+  for (auto prefix : {"as-", "tg-"}) {
+    td::string p = prefix;
+    check_parse_html("<" + p + "time unix=\"12345\" format=\"r\">later</" + p + "time>", "later",
+                     {{td::MessageEntity::Type::FormattedDate, 0, 5, td::FormattedDate{12345, 1}}});
+    check_parse_html("<" + p + "time unix=\"12345\" format=\"rt\">later</" + p + "time>", "Invalid date format used");
+    check_parse_html("😀<" + p + "spoiler><b>hide</b></" + p + "spoiler>", "😀hide",
+                     {{td::MessageEntity::Type::Bold, 2, 4}, {td::MessageEntity::Type::Spoiler, 2, 4}});
+    check_parse_html("<span class=\"" + p + "spoiler\">hide</span>", "hide",
+                     {{td::MessageEntity::Type::Spoiler, 0, 4}});
+    check_parse_html("<" + p + "emoji emoji-id=\"5368324170671202286\">👍</" + p + "emoji>", "👍",
+                     {{td::MessageEntity::Type::CustomEmoji, 0, 2, td::CustomEmojiId(5368324170671202286)}});
+  }
+  check_parse_html("<AS-SPOILER>hide</AS-SPOILER>", "hide", {{td::MessageEntity::Type::Spoiler, 0, 4}});
+  check_parse_html("<as-spoiler>hide</tg-spoiler>",
+                   "Unmatched end tag at byte offset 16, expected \"</as-spoiler>\", found \"</tg-spoiler>\"");
+  check_parse_html("<as-unknown>x</as-unknown>", "Unsupported start tag \"as-unknown\" at byte offset 0");
+  check_parse_html("as-spoiler tg-time &lt;as-spoiler&gt;", "as-spoiler tg-time <as-spoiler>", {});
+
   check_parse_html("", "", {});
   check_parse_html("➡️ ➡️", "➡️ ➡️", {});
   check_parse_html("&ge;&lt;&gt;&amp;&quot;&laquo;&raquo;&#12345678;", "&ge;<>&\"&laquo;&raquo;&#12345678;", {});

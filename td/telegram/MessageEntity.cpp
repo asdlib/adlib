@@ -3424,11 +3424,10 @@ Result<vector<MessageEntity>> parse_html(string &str) {
       string tag_name = to_lower(Slice(text + begin_pos + 1, i - begin_pos - 1));
       if (tag_name != "a" && tag_name != "b" && tag_name != "strong" && tag_name != "i" && tag_name != "em" &&
           tag_name != "s" && tag_name != "strike" && tag_name != "del" && tag_name != "u" && tag_name != "ins" &&
-          // 🚨 as-emoji — НАШЕ имя тега, tg-emoji оставлен нарочно: его
-          // шлют все существующие библиотеки ботов, и выбросив его, мы
-          // сломали бы каждого бота, написанного до нас.
-          tag_name != "tg-spoiler" && tag_name != "tg-emoji" && tag_name != "as-emoji" &&
-          tag_name != "tg-time" && tag_name != "span" &&
+          // Both namespaces are accepted for compatibility with existing bots.
+          tag_name != "tg-spoiler" && tag_name != "as-spoiler" &&
+          tag_name != "tg-emoji" && tag_name != "as-emoji" &&
+          tag_name != "tg-time" && tag_name != "as-time" && tag_name != "span" &&
           tag_name != "pre" && tag_name != "code" && tag_name != "blockquote") {
         return Status::Error(400, PSLICE()
                                       << "Unsupported start tag \"" << tag_name << "\" at byte offset " << begin_pos);
@@ -3517,16 +3516,17 @@ Result<vector<MessageEntity>> parse_html(string &str) {
         } else if (tag_name == "code" && attribute_name == Slice("class") &&
                    begins_with(attribute_value, "language-")) {
           argument = attribute_value.substr(9);
-        } else if (tag_name == "span" && attribute_name == Slice("class") && begins_with(attribute_value, "tg-")) {
+        } else if (tag_name == "span" && attribute_name == Slice("class") &&
+                   (begins_with(attribute_value, "tg-") || begins_with(attribute_value, "as-"))) {
           argument = attribute_value.substr(3);
         } else if ((tag_name == "tg-emoji" || tag_name == "as-emoji") &&
                    attribute_name == Slice("emoji-id")) {
           argument = std::move(attribute_value);
         } else if (tag_name == "blockquote" && attribute_name == Slice("expandable")) {
           argument = "1";
-        } else if (tag_name == "tg-time" && attribute_name == Slice("unix")) {
+        } else if ((tag_name == "tg-time" || tag_name == "as-time") && attribute_name == Slice("unix")) {
           date = to_integer<int32>(attribute_value);
-        } else if (tag_name == "tg-time" && attribute_name == Slice("format")) {
+        } else if ((tag_name == "tg-time" || tag_name == "as-time") && attribute_name == Slice("format")) {
           argument = std::move(attribute_value);
         }
       }
@@ -3572,7 +3572,8 @@ Result<vector<MessageEntity>> parse_html(string &str) {
           entities.emplace_back(MessageEntity::Type::Strikethrough, entity_offset, entity_length);
         } else if (tag_name == "u" || tag_name == "ins") {
           entities.emplace_back(MessageEntity::Type::Underline, entity_offset, entity_length);
-        } else if (tag_name == "tg-spoiler" || (tag_name == "span" && nested_entities.back().argument == "spoiler")) {
+        } else if (tag_name == "tg-spoiler" || tag_name == "as-spoiler" ||
+                   (tag_name == "span" && nested_entities.back().argument == "spoiler")) {
           entities.emplace_back(MessageEntity::Type::Spoiler, entity_offset, entity_length);
         } else if (tag_name == "tg-emoji" || tag_name == "as-emoji") {
           auto r_document_id = to_integer_safe<int64>(nested_entities.back().argument);
@@ -3581,7 +3582,7 @@ Result<vector<MessageEntity>> parse_html(string &str) {
           }
           entities.emplace_back(MessageEntity::Type::CustomEmoji, entity_offset, entity_length,
                                 CustomEmojiId(r_document_id.ok()));
-        } else if (tag_name == "tg-time") {
+        } else if (tag_name == "tg-time" || tag_name == "as-time") {
           TRY_RESULT(formatted_date,
                      FormattedDate::get_formatted_date(nested_entities.back().date, nested_entities.back().argument));
           if (nested_entities.back().date > 0) {
